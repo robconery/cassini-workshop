@@ -18,7 +18,7 @@ MVP = all 7 tools (no partial release). FTS5 assumed available on D1.
 
 ### Group B — Data + shared seams (depend on T01)
 
-- [ ] **T02 — Date utils (DOY ↔ ISO)** · story:STORY-002 · depends-on:T01 · parallel-group:B
+- [x] **T02 — Date utils (DOY ↔ ISO)** · story:STORY-002 · depends-on:T01 · parallel-group:B
   `src/util/dates.ts`: parse `YYYY-DDDThh:mm:ss` → ISO 8601 `Z`, and back.
   Acceptance: spec `doy-to-iso` green.
 - [ ] **T03 — Query layer interface + D1 adapter** · story:STORY-003 · depends-on:T01 · parallel-group:B
