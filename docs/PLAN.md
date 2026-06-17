@@ -21,7 +21,7 @@ MVP = all 7 tools (no partial release). FTS5 assumed available on D1.
 - [x] **T02 — Date utils (DOY ↔ ISO)** · story:STORY-002 · depends-on:T01 · parallel-group:B
   `src/util/dates.ts`: parse `YYYY-DDDThh:mm:ss` → ISO 8601 `Z`, and back.
   Acceptance: spec `doy-to-iso` green.
-- [ ] **T03 — Query layer interface + D1 adapter** · story:STORY-003 · depends-on:T01 · parallel-group:B
+- [x] **T03 — Query layer interface + D1 adapter** · story:STORY-003 · depends-on:T01 · parallel-group:B
   `src/db/queries.ts`: typed, prepared-statement wrappers (no SQL string
   concat). Define a `Db` port so tests inject a fake. Acceptance: compiles,
   fake adapter usable from specs.
