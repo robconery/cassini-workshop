@@ -11,7 +11,7 @@ MVP = all 7 tools (no partial release). FTS5 assumed available on D1.
 
 ### Group A — Project setup (no deps)
 
-- [ ] **T01 — Scaffold Worker project** · story:STORY-001 · depends-on:none · parallel-group:A
+- [x] **T01 — Scaffold Worker project** · story:STORY-001 · depends-on:none · parallel-group:A
   `package.json`, `tsconfig.json`, `wrangler.toml` (Worker + D1 binding),
   Jest config, `src/` layout per ARCHITECTURE.md. Acceptance: `npx jest`
   runs (0 tests ok), `wrangler` recognizes the config.

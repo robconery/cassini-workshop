@@ -31,11 +31,11 @@ describe("Feature: listing activities with filters and pagination", () => {
     });
 
     it("includes the derived ISO timestamp on each row", () => {
-      expect(result[0].start_iso).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      expect(result[0]!.start_iso).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
     it("includes the raw mission timestamp on each row", () => {
-      expect(result[0].start_time_utc).toBeDefined();
+      expect(result[0]!.start_time_utc).toBeDefined();
     });
   });
 

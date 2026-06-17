@@ -35,7 +35,7 @@ describe("Feature: aggregating activities by a column", () => {
     });
 
     it("puts the most frequent target first", () => {
-      expect(result[0].key).toBe("Titan");
+      expect(result[0]!.key).toBe("Titan");
     });
   });
 
