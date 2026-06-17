@@ -250,6 +250,80 @@ export async function getActivity(
   return db.prepare(sql).bind(id).first<Activity>();
 }
 
+// ---------------------------------------------------------------------------
+// Aggregate query
+// ---------------------------------------------------------------------------
+
+/** The three columns by which activities may be grouped. */
+export type AggregateGroupBy = "team" | "target" | "spass_type";
+
+/** One bucket in an aggregation result. */
+export interface AggregationBucket {
+  readonly key: string;
+  readonly count: number;
+}
+
+/**
+ * Safe lookup from the validated enum value to the literal SQL column name.
+ *
+ * This is the security crux: the caller supplies a `group_by` that has
+ * already been validated by zod as one of the three known enum values, but
+ * we NEVER interpolate the raw string into SQL. Instead we map it to a
+ * known-safe literal here, so even if the type boundary were bypassed the
+ * query function cannot emit an arbitrary column name. Any value that is
+ * not a key of this map is a programmer error and throws at build time (the
+ * `satisfies` below) and at runtime (the `exhaustiveGroupBy` guard).
+ */
+const GROUP_BY_COLUMN = {
+  team: "team",
+  target: "target",
+  spass_type: "spass_type",
+} as const satisfies Record<AggregateGroupBy, string>;
+
+/**
+ * Resolve a validated `AggregateGroupBy` value to the literal SQL column name.
+ *
+ * `GROUP_BY_COLUMN` is typed as `Record<AggregateGroupBy, string>` via
+ * `satisfies`, so TypeScript guarantees the lookup always returns a `string`
+ * for any `AggregateGroupBy` input — no `undefined` branch is possible.
+ * If `AggregateGroupBy` gains a new member without a matching entry in
+ * `GROUP_BY_COLUMN`, the `satisfies` above will produce a compile error,
+ * making this function the statically-enforced exhaustiveness check.
+ */
+function resolveGroupByColumn(groupBy: AggregateGroupBy): string {
+  return GROUP_BY_COLUMN[groupBy];
+}
+
+/**
+ * Aggregate activities by a single column and return buckets sorted
+ * descending by count.
+ *
+ * Security: the `group_by` column identifier is resolved from a fixed
+ * whitelist (`GROUP_BY_COLUMN`) — it is never the raw user input. All
+ * filter values and the `top` limit are bound as positional parameters.
+ */
+export async function aggregateActivities(
+  db: Db,
+  groupBy: AggregateGroupBy,
+  filters: ActivityFilters,
+  top: number,
+): Promise<AggregationBucket[]> {
+  const col = resolveGroupByColumn(groupBy);
+  const { clause, params } = buildFilters(filters);
+
+  // `col` is a literal from GROUP_BY_COLUMN — never user input.
+  const sql = `
+    SELECT ${col} AS key, COUNT(*) AS count
+    FROM master_plan
+    ${clause}
+    GROUP BY ${col}
+    ORDER BY count DESC
+    LIMIT ?
+  `;
+
+  return db.prepare(sql).bind(...params, top).all<AggregationBucket>();
+}
+
 /** Pagination inputs for list_activities. */
 export interface ListActivityOptions extends ActivityFilters {
   readonly limit: number;

@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import type { Db } from "../db/queries";
-import { listActivities, getActivity, searchActivities, countActivities } from "../db/queries";
+import { listActivities, getActivity, searchActivities, countActivities, aggregateActivities } from "../db/queries";
 import { RPC_INVALID_PARAMS } from "../mcp/jsonrpc";
 
 // ---------------------------------------------------------------------------
@@ -240,7 +240,16 @@ export const toolHandlers: Readonly<Record<string, ToolHandler>> = {
     });
     return { count };
   },
-  aggregate_activities: notImplemented("aggregate_activities"),
+  aggregate_activities: async (args, db) => {
+    const input = aggregateActivitiesSchema.parse(args);
+    return aggregateActivities(db, input.group_by, {
+      from: input.from,
+      to: input.to,
+      team: input.team,
+      target: input.target,
+      spass_type: input.spass_type,
+    }, input.top);
+  },
   timeline: notImplemented("timeline"),
   list_distinct: notImplemented("list_distinct"),
 };

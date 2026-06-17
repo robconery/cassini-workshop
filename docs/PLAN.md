@@ -59,7 +59,7 @@ tasks edit the same lines._
 - [x] **T07 — get_activity** · story:STORY-004 · depends-on:T03,T05 · parallel-group:E
 - [x] **T08 — search_activities (FTS5)** · story:STORY-005 · depends-on:T03,T05,T04 · parallel-group:E
 - [x] **T09 — count_activities** · story:STORY-006 · depends-on:T03,T05 · parallel-group:E
-- [ ] **T10 — aggregate_activities** · story:STORY-007 · depends-on:T03,T05 · parallel-group:E
+- [x] **T10 — aggregate_activities** · story:STORY-007 · depends-on:T03,T05 · parallel-group:E
 - [ ] **T11 — timeline (zero-fill buckets)** · story:STORY-008 · depends-on:T03,T05 · parallel-group:E
 - [ ] **T12 — list_distinct (isolate cache)** · story:STORY-009 · depends-on:T03,T05 · parallel-group:E
 
