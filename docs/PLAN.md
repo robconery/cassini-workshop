@@ -41,6 +41,14 @@ MVP = all 7 tools (no partial release). FTS5 assumed available on D1.
   throw "not implemented"); unknown tool → MCP error. Acceptance: specs
   `worker-mcp-transport` green via the exported `fetch` handler.
 
+### Group D.1 — Foundation fix (interstitial, found in build-loop)
+
+- [x] **T05.1 — Fix test-suite flakiness in better-sqlite3 adapter** · depends-on:T03,T05 · parallel-group:-
+  `spec/db-adapter.spec.ts` sad-path passes in isolation but fails in the
+  full suite (cross-file native-module interaction). Make the full `npx jest`
+  run deterministic without weakening assertions. Must land before Group E so
+  tool-spec failures are trustworthy.
+
 ### Group E — Tools (each depends on T03 query layer + T05 registry)
 
 _All parallel — each adds one handler file + registers it. Shared files

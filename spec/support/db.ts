@@ -7,15 +7,47 @@
  * `Db` port that D1 also implements.
  *
  * Imported by spec/support/harness.ts (T05) and spec/db-adapter.spec.ts.
+ *
+ * CONNECTION LIFECYCLE
+ * Each call to createTestDb opens a new better-sqlite3 connection. Callers
+ * should call `closeOpenConnections()` in afterAll/afterEach to release native
+ * handles promptly. The global afterAll in this module handles cleanup for
+ * connections that are never explicitly closed (e.g. in inline spec bodies),
+ * but explicit closing is preferred. See `CloseableDb` below.
  */
 // better-sqlite3 uses `export =` — must use `import * as` (no esModuleInterop).
 import * as BetterSqlite3 from "better-sqlite3";
 import type { Db, Stmt } from "../../src/db/queries";
 import { SCHEMA_STATEMENTS, REBUILD_FTS } from "../../src/db/schema";
 import type { Row } from "./fixtures";
+import { afterAll } from "@jest/globals";
 
 // Alias for the instance type produced by `new BetterSqlite3(...)`.
 type SqliteDb = BetterSqlite3.Database;
+
+// ---------------------------------------------------------------------------
+// Connection registry — tracks every open native handle for this test file
+// ---------------------------------------------------------------------------
+
+const openConnections: SqliteDb[] = [];
+
+/**
+ * Close all better-sqlite3 connections opened by createTestDb in this file.
+ * Call this in afterAll when you want explicit control; the module-level
+ * afterAll registered below acts as a safety net.
+ */
+export function closeOpenConnections(): void {
+  let conn: SqliteDb | undefined;
+  while ((conn = openConnections.pop()) !== undefined) {
+    if (conn.open) conn.close();
+  }
+}
+
+// Safety-net: close any connections left open by specs that do not call
+// closeOpenConnections() explicitly.
+afterAll(() => {
+  closeOpenConnections();
+});
 
 // ---------------------------------------------------------------------------
 // Adapter internals
@@ -61,19 +93,33 @@ function wrapStmt(db: SqliteDb, sql: string, boundValues: unknown[] = []): Stmt 
 }
 
 // ---------------------------------------------------------------------------
-// Public factory
+// Public types and factory
 // ---------------------------------------------------------------------------
+
+/**
+ * A `Db` port with a `close()` method for explicit resource management.
+ * Prefer calling `close()` in afterAll rather than relying on the module-level
+ * safety net, so native handles are released as soon as a describe block ends.
+ */
+export interface CloseableDb extends Db {
+  /** Release the underlying better-sqlite3 connection immediately. */
+  close(): void;
+}
 
 /**
  * Build a `Db` backed by an in-memory better-sqlite3 database, with the
  * production schema applied and `rows` pre-inserted. FTS is rebuilt once
  * after bulk insert, matching the importer's approach.
  *
+ * The returned `CloseableDb` exposes a `close()` method. Callers that do not
+ * call `close()` explicitly are cleaned up by the module-level afterAll.
+ *
  * @param rows - Fixture rows to seed into `master_plan`.
  */
-export function createTestDb(rows: Row[]): Db {
+export function createTestDb(rows: Row[]): CloseableDb {
   // BetterSqlite3 is the constructor when the module uses `export =`.
   const sqlite: SqliteDb = new BetterSqlite3(":memory:");
+  openConnections.push(sqlite);
 
   // Apply the shared schema — identical to production D1.
   for (const ddl of SCHEMA_STATEMENTS) {
@@ -105,6 +151,11 @@ export function createTestDb(rows: Row[]): Db {
   return {
     prepare(sql: string): Stmt {
       return wrapStmt(sqlite, sql);
+    },
+    close(): void {
+      const idx = openConnections.indexOf(sqlite);
+      if (idx !== -1) openConnections.splice(idx, 1);
+      if (sqlite.open) sqlite.close();
     },
   };
 }

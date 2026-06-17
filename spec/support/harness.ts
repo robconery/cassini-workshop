@@ -13,7 +13,7 @@
  * updating the specs that depend on them.
  */
 import type { Row } from "./fixtures";
-import { createTestDb } from "./db";
+import { createTestDb, type CloseableDb } from "./db";
 import server from "../../src/server";
 
 /** MCP error surfaced by a tool call — code is the JSON-RPC error code. */
@@ -44,10 +44,12 @@ export interface Session {
  * Worker `env`, and route requests through `app.fetch`.
  */
 export function sessionWith(rows: Row[]): Session {
-  const db = createTestDb(rows);
+  const db: CloseableDb = createTestDb(rows);
   // Inject via the named test seam — resolveDb() uses __testDb directly,
   // bypassing d1Adapter. DB is not set here; it is only used in production.
-  const env = { __testDb: db };
+  // Cast through `unknown` because `Env` requires the production `DB` binding
+  // which is absent in test environments — this is intentional and safe.
+  const env = { __testDb: db } as unknown as Parameters<typeof server.fetch>[1];
 
   /** POST a JSON-RPC request and return the parsed response body. */
   async function post(method: string, params?: unknown): Promise<unknown> {
@@ -64,7 +66,7 @@ export function sessionWith(rows: Row[]): Session {
       body,
     });
 
-    const response = await server.fetch(request, env as Parameters<typeof server.fetch>[1]);
+    const response = await server.fetch(request, env);
     return response.json();
   }
 
