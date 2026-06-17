@@ -1,0 +1,21 @@
+{
+  "name": "cassini-mission-plan-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "jest --testPathPattern=spec/",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.0.0",
+    "@jest/globals": "^29.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0",
+    "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "zod": "^3.0.0"
+  }
+}
