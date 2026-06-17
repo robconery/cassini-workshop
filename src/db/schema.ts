@@ -1,9 +1,10 @@
 /**
  * Shared DDL — single source of truth for the master_plan schema.
  *
- * Both the importer (scripts/import.ts) and the in-memory test adapter
- * (spec/support/db.ts) import from here so production and test always
- * run against identical SQL. Never duplicate this DDL elsewhere.
+ * Both the importer (scripts/import.ts) and the in-memory test adapters
+ * (spec/support/db.ts, spec/support/import-store.ts) import from here so
+ * production and test always run against identical SQL. Never duplicate this
+ * DDL elsewhere.
  */
 
 export const CREATE_MASTER_PLAN = `

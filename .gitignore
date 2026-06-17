@@ -1,3 +1,9 @@
 node_modules/
 .wrangler/
 dist/
+
+# Generated import artifact — regenerate with `node scripts/import.js`
+data/cassini.d1.sql
+# SQLite WAL sidecars — not committed
+data/*.db-shm
+data/*.db-wal

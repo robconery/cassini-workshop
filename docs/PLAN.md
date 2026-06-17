@@ -28,7 +28,7 @@ MVP = all 7 tools (no partial release). FTS5 assumed available on D1.
 
 ### Group C — Importer (depends on T02, T03)
 
-- [ ] **T04 — Importer script** · story:STORY-002 · depends-on:T02,T03 · parallel-group:-
+- [x] **T04 — Importer script** · story:STORY-002 · depends-on:T02,T03 · parallel-group:-
   `scripts/import.ts`: create schema + indexes + `master_plan_fts`, derive
   `start_iso`, skip+log unparseable rows, idempotent re-run. Acceptance:
   specs `seed-d1-from-cassini` green against a local D1/SQLite.
