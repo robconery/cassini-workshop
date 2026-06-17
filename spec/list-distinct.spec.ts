@@ -37,15 +37,25 @@ describe("Feature: listing distinct values of a column", () => {
   describe("Scenario: calling the same field twice in one isolate", () => {
     let first: string[];
     let second: string[];
+    let prepareCountAfterFirst: number;
+    let prepareCountAfterSecond: number;
 
     beforeAll(async () => {
       const session: Session = sessionWith(dataset);
       first = await session.callTool<string[]>("list_distinct", { field: "team" });
+      prepareCountAfterFirst = session.db.prepareCount;
       second = await session.callTool<string[]>("list_distinct", { field: "team" });
+      prepareCountAfterSecond = session.db.prepareCount;
     });
 
     it("returns the same values on the cached second call", () => {
       expect(second).toEqual(first);
+    });
+
+    it("issues no additional query on the second call (cache hit)", () => {
+      // The second list_distinct for the same field must not increment prepareCount —
+      // proving the result was served from the isolate-level cache, not D1.
+      expect(prepareCountAfterSecond).toBe(prepareCountAfterFirst);
     });
   });
 

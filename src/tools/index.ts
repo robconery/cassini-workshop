@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import type { Db } from "../db/queries";
-import { listActivities, getActivity, searchActivities, countActivities, aggregateActivities, timeline } from "../db/queries";
+import { listActivities, getActivity, searchActivities, countActivities, aggregateActivities, timeline, listDistinct } from "../db/queries";
 import { RPC_INVALID_PARAMS } from "../mcp/jsonrpc";
 
 // ---------------------------------------------------------------------------
@@ -271,7 +271,10 @@ export const toolHandlers: Readonly<Record<string, ToolHandler>> = {
       target: input.target,
     });
   },
-  list_distinct: notImplemented("list_distinct"),
+  list_distinct: async (args, db) => {
+    const input = listDistinctSchema.parse(args);
+    return listDistinct(db, input.field);
+  },
 };
 
 // Re-export schemas so tool tasks can import the zod schema for their tool

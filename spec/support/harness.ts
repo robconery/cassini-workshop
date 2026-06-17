@@ -16,6 +16,8 @@ import type { Row } from "./fixtures";
 import { createTestDb, type CloseableDb } from "./db";
 import server from "../../src/server";
 
+export type { CloseableDb };
+
 /** MCP error surfaced by a tool call — code is the JSON-RPC error code. */
 export class McpError extends Error {
   constructor(
@@ -48,6 +50,11 @@ export interface Session {
   listToolDescriptors(): Promise<ToolDescriptorRaw[]>;
   /** Call a tool; resolves to its structured result or throws `McpError`. */
   callTool<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T>;
+  /**
+   * The underlying test Db for this session — exposes `prepareCount` so specs
+   * can assert that cached calls issue no additional queries.
+   */
+  readonly db: CloseableDb;
 }
 
 /**
@@ -84,6 +91,8 @@ export function sessionWith(rows: Row[]): Session {
   }
 
   return {
+    db,
+
     async initialize() {
       const resp = await post("initialize") as {
         result: { serverInfo: { name: string; version: string } };

@@ -61,7 +61,7 @@ tasks edit the same lines._
 - [x] **T09 — count_activities** · story:STORY-006 · depends-on:T03,T05 · parallel-group:E
 - [x] **T10 — aggregate_activities** · story:STORY-007 · depends-on:T03,T05 · parallel-group:E
 - [x] **T11 — timeline (zero-fill buckets)** · story:STORY-008 · depends-on:T03,T05 · parallel-group:E
-- [ ] **T12 — list_distinct (isolate cache)** · story:STORY-009 · depends-on:T03,T05 · parallel-group:E
+- [x] **T12 — list_distinct (isolate cache)** · story:STORY-009 · depends-on:T03,T05 · parallel-group:E
 
 Each T06–T12 acceptance: the tool's spec file green, including sad-path
 validation (zod) and the entry-point scenario driving the exported handler.

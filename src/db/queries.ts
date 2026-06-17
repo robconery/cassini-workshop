@@ -68,11 +68,44 @@ function wrapD1Stmt(d1Stmt: D1PreparedStatement): Stmt {
  * D1's `.all<T>()` returns `{ results: T[] }` — we unwrap it so callers
  * just get the rows. `.first<T>()` is forwarded directly (returns T | null).
  * `.run()` executes and discards metadata.
+ *
+ * Memoized per D1Database binding: within a single Worker isolate, `env.DB`
+ * is the same object reference for every request, so this WeakMap ensures
+ * `d1Adapter` returns the SAME `Db` object for the same binding. That makes
+ * the `distinctCache` (keyed by `Db`) stable across requests in production —
+ * satisfying F9 (cached per isolate; lifetime = isolate's lifetime).
+ *
+ * The WeakMap holds no strong reference to the binding, so entries are
+ * released when D1Database objects are GC'd (e.g. between isolate restarts).
  */
+const d1AdapterCache = new WeakMap<D1Database, Db>();
+
 export function d1Adapter(d1: D1Database): Db {
+  // WeakMap requires an object key. Guard against misconfigured envs (missing
+  // DB binding → undefined) so resolveDb itself doesn't throw — the error
+  // surfaces at prepare() time, matching the pre-existing contract.
+  if (d1 !== null && typeof d1 === "object") {
+    const cached = d1AdapterCache.get(d1);
+    if (cached !== undefined) return cached;
+
+    const adapter: Db = {
+      prepare(sql: string): Stmt {
+        return wrapD1Stmt(d1.prepare(sql));
+      },
+    };
+
+    d1AdapterCache.set(d1, adapter);
+    return adapter;
+  }
+
+  // Degenerate path: d1 is null/undefined (misconfigured deploy). Return an
+  // adapter whose prepare() throws immediately, preserving the existing
+  // contract that resolveDb itself is lazy.
   return {
-    prepare(sql: string): Stmt {
-      return wrapD1Stmt(d1.prepare(sql));
+    prepare(_sql: string): Stmt {
+      throw new TypeError(
+        `d1Adapter: env.DB is not a D1Database (got ${String(d1)})`,
+      );
     },
   };
 }
@@ -254,8 +287,11 @@ export async function getActivity(
 // Aggregate query
 // ---------------------------------------------------------------------------
 
-/** The three columns by which activities may be grouped. */
+/** The three columns by which activities may be grouped (and distinct values may be listed). */
 export type AggregateGroupBy = "team" | "target" | "spass_type";
+
+/** Alias: the same three columns are valid for list_distinct. */
+export type DistinctField = AggregateGroupBy;
 
 /** One bucket in an aggregation result. */
 export interface AggregationBucket {
@@ -481,4 +517,79 @@ export async function listActivities(
   `;
 
   return db.prepare(sql).bind(...params, limit, offset).all<Activity>();
+}
+
+// ---------------------------------------------------------------------------
+// list_distinct query (T12)
+// ---------------------------------------------------------------------------
+
+/**
+ * Safe lookup from a validated `DistinctField` to the literal SQL column name.
+ *
+ * Security: the caller's `field` value is already zod-validated as one of the
+ * three known enum members, but we NEVER interpolate it raw into SQL. This map
+ * guarantees the identifier that reaches the query is a known literal — not the
+ * user-supplied string. If `DistinctField` gains a new member without a matching
+ * entry here, the `satisfies` below produces a compile-time error.
+ */
+const DISTINCT_COLUMN = {
+  team: "team",
+  target: "target",
+  spass_type: "spass_type",
+} as const satisfies Record<DistinctField, string>;
+
+/**
+ * Isolate-level cache for list_distinct results.
+ *
+ * Keyed by `Db` instance so:
+ *   - Same `Db` (same Worker isolate / same test session) → returns cached
+ *     results on the second call, issuing NO additional query (F9).
+ *   - Different `Db` (different test sessions, different isolates) → get their
+ *     own cache entry, preventing cross-test contamination.
+ *
+ * `WeakMap` is used so cache entries are released when the `Db` object is GC'd
+ * — no memory leak in long-running Workers with multiple short-lived Db
+ * instances.
+ */
+const distinctCache = new WeakMap<Db, Map<DistinctField, string[]>>();
+
+/**
+ * Return sorted, distinct, non-null values for `field` from master_plan.
+ *
+ * The column identifier is resolved from `DISTINCT_COLUMN` — never the raw
+ * user input. Results are cached per `Db` instance so repeated calls within
+ * the same isolate / test session hit the cache rather than issuing a query.
+ */
+export async function listDistinct(
+  db: Db,
+  field: DistinctField,
+): Promise<string[]> {
+  // Check the per-Db cache first.
+  let dbCache = distinctCache.get(db);
+  if (dbCache !== undefined) {
+    const cached = dbCache.get(field);
+    if (cached !== undefined) return cached;
+  }
+
+  // `col` is a literal from DISTINCT_COLUMN — never the raw user string.
+  const col = DISTINCT_COLUMN[field];
+  const sql = `
+    SELECT DISTINCT ${col} AS value
+    FROM master_plan
+    WHERE ${col} IS NOT NULL
+    ORDER BY ${col} ASC
+  `;
+
+  type ValueRow = { value: string };
+  const rows = await db.prepare(sql).all<ValueRow>();
+  const values = rows.map((r) => r.value);
+
+  // Populate the cache for this Db instance.
+  if (dbCache === undefined) {
+    dbCache = new Map();
+    distinctCache.set(db, dbCache);
+  }
+  dbCache.set(field, values);
+
+  return values;
 }

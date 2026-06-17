@@ -97,13 +97,21 @@ function wrapStmt(db: SqliteDb, sql: string, boundValues: unknown[] = []): Stmt 
 // ---------------------------------------------------------------------------
 
 /**
- * A `Db` port with a `close()` method for explicit resource management.
+ * A `Db` port with a `close()` method for explicit resource management and a
+ * `prepareCount` for asserting that the cache prevents redundant queries.
+ *
  * Prefer calling `close()` in afterAll rather than relying on the module-level
  * safety net, so native handles are released as soon as a describe block ends.
  */
 export interface CloseableDb extends Db {
   /** Release the underlying better-sqlite3 connection immediately. */
   close(): void;
+  /**
+   * Number of times `prepare()` has been called on this Db since creation.
+   * Increments on every SQL string passed through the Db port — use it in
+   * cache-hit assertions to verify no extra query was issued.
+   */
+  readonly prepareCount: number;
 }
 
 /**
@@ -148,9 +156,15 @@ export function createTestDb(rows: Row[]): CloseableDb {
     sqlite.exec(REBUILD_FTS);
   }
 
+  let prepares = 0;
+
   return {
     prepare(sql: string): Stmt {
+      prepares += 1;
       return wrapStmt(sqlite, sql);
+    },
+    get prepareCount(): number {
+      return prepares;
     },
     close(): void {
       const idx = openConnections.indexOf(sqlite);
