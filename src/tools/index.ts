@@ -15,6 +15,7 @@
 
 import { z } from "zod";
 import type { Db } from "../db/queries";
+import { listActivities } from "../db/queries";
 
 // ---------------------------------------------------------------------------
 // Shared field schemas
@@ -199,7 +200,18 @@ function notImplemented(name: string): ToolHandler {
 }
 
 export const toolHandlers: Readonly<Record<string, ToolHandler>> = {
-  list_activities: notImplemented("list_activities"),
+  list_activities: async (args, db) => {
+    const input = listActivitiesSchema.parse(args);
+    return listActivities(db, {
+      from: input.from,
+      to: input.to,
+      team: input.team,
+      target: input.target,
+      spass_type: input.spass_type,
+      limit: input.limit,
+      offset: input.offset,
+    });
+  },
   get_activity: notImplemented("get_activity"),
   search_activities: notImplemented("search_activities"),
   count_activities: notImplemented("count_activities"),

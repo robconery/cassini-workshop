@@ -78,5 +78,113 @@ export function d1Adapter(d1: D1Database): Db {
 }
 
 // ---------------------------------------------------------------------------
+// Shared types
+// ---------------------------------------------------------------------------
+
+/** One row from master_plan — all columns present. */
+export interface Activity {
+  readonly id: number;
+  readonly start_time_utc: string;
+  readonly start_iso: string;
+  readonly duration: string;
+  readonly date: string;
+  readonly team: string;
+  readonly spass_type: string;
+  readonly target: string;
+  readonly request_name: string;
+  readonly library_definition: string;
+  readonly title: string;
+  readonly description: string;
+}
+
+// ---------------------------------------------------------------------------
+// Shared filter building (reused by T09 count, T11 timeline)
+// ---------------------------------------------------------------------------
+
+/** Optional filter inputs shared across list / count / timeline tools. */
+export interface ActivityFilters {
+  readonly from?: string;
+  readonly to?: string;
+  readonly team?: string;
+  readonly target?: string;
+  readonly spass_type?: string;
+}
+
+/**
+ * Build the WHERE clause and bound parameter array from a set of optional
+ * filters. The clause text is assembled from a fixed whitelist of column
+ * names — user values are NEVER interpolated into SQL text; they are always
+ * bound via positional `?` placeholders.
+ *
+ * Returns `{ clause, params }` where `clause` is either an empty string (no
+ * filters) or a `WHERE ...` string ready to append to a SELECT, and `params`
+ * is the ordered array to pass to `.bind(...params)`.
+ */
+export function buildFilters(filters: ActivityFilters): {
+  clause: string;
+  params: unknown[];
+} {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (filters.from !== undefined) {
+    conditions.push("start_iso >= ?");
+    params.push(filters.from);
+  }
+  if (filters.to !== undefined) {
+    conditions.push("start_iso < ?");
+    params.push(filters.to);
+  }
+  if (filters.team !== undefined) {
+    conditions.push("team = ?");
+    params.push(filters.team);
+  }
+  if (filters.target !== undefined) {
+    conditions.push("target = ?");
+    params.push(filters.target);
+  }
+  if (filters.spass_type !== undefined) {
+    conditions.push("spass_type = ?");
+    params.push(filters.spass_type);
+  }
+
+  const clause =
+    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  return { clause, params };
+}
+
+// ---------------------------------------------------------------------------
 // Tool query functions live below this line (added in T06–T12).
 // ---------------------------------------------------------------------------
+
+/** Pagination inputs for list_activities. */
+export interface ListActivityOptions extends ActivityFilters {
+  readonly limit: number;
+  readonly offset: number;
+}
+
+/**
+ * Fetch a page of activities matching the given filters.
+ *
+ * Ordering is stable (start_iso, id) so pagination produces disjoint pages.
+ * All filter values are bound — no string interpolation of user data.
+ */
+export async function listActivities(
+  db: Db,
+  options: ListActivityOptions,
+): Promise<Activity[]> {
+  const { limit, offset, ...filters } = options;
+  const { clause, params } = buildFilters(filters);
+
+  const sql = `
+    SELECT id, start_time_utc, start_iso, duration, date, team, spass_type,
+           target, request_name, library_definition, title, description
+    FROM master_plan
+    ${clause}
+    ORDER BY start_iso, id
+    LIMIT ? OFFSET ?
+  `;
+
+  return db.prepare(sql).bind(...params, limit, offset).all<Activity>();
+}

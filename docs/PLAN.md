@@ -55,7 +55,7 @@ _All parallel — each adds one handler file + registers it. Shared files
 (`queries.ts`, `tools/index.ts`) are append-only per task; re-slice if two
 tasks edit the same lines._
 
-- [ ] **T06 — list_activities** · story:STORY-003 · depends-on:T03,T05 · parallel-group:E
+- [x] **T06 — list_activities** · story:STORY-003 · depends-on:T03,T05 · parallel-group:E
 - [ ] **T07 — get_activity** · story:STORY-004 · depends-on:T03,T05 · parallel-group:E
 - [ ] **T08 — search_activities (FTS5)** · story:STORY-005 · depends-on:T03,T05,T04 · parallel-group:E
 - [ ] **T09 — count_activities** · story:STORY-006 · depends-on:T03,T05 · parallel-group:E
