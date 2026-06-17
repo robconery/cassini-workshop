@@ -158,6 +158,61 @@ export function buildFilters(filters: ActivityFilters): {
 // Tool query functions live below this line (added in T06–T12).
 // ---------------------------------------------------------------------------
 
+/** One row returned by the FTS search — a projection of Activity plus snippet. */
+export interface SearchHit {
+  readonly id: number;
+  readonly start_iso: string;
+  readonly team: string;
+  readonly target: string;
+  readonly title: string;
+  readonly snippet: string;
+}
+
+/**
+ * Wrap a user-supplied FTS query string so it is treated as a literal phrase
+ * by FTS5's MATCH operator. Special characters (quotes, `*`, `-`, `:`,
+ * parentheses) can cause MATCH syntax errors when the raw string is bound.
+ *
+ * Strategy: wrap in double-quotes (FTS5 phrase query) and escape any embedded
+ * double-quote by doubling it (""). This is the minimal safe transform that
+ * keeps ordinary keyword searches working while preventing MATCH syntax errors
+ * on punctuation-heavy input.
+ */
+function ftsPhrase(query: string): string {
+  return `"${query.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Full-text search over activity title and description using FTS5.
+ *
+ * The query is wrapped as an FTS5 phrase literal before binding to avoid
+ * MATCH-syntax errors on special characters. Results are ordered by FTS5
+ * rank (best match first). The `snippet()` function highlights the matched
+ * term(s) across both indexed columns; column index -1 means "best column".
+ *
+ * Returns an empty array when no rows match — never throws for a no-match.
+ */
+export async function searchActivities(
+  db: Db,
+  query: string,
+  limit: number,
+): Promise<SearchHit[]> {
+  const sql = `
+    SELECT mp.id,
+           mp.start_iso,
+           mp.team,
+           mp.target,
+           mp.title,
+           snippet(master_plan_fts, -1, '[', ']', '…', 10) AS snippet
+    FROM master_plan_fts
+    JOIN master_plan mp ON mp.id = master_plan_fts.rowid
+    WHERE master_plan_fts MATCH ?
+    ORDER BY rank
+    LIMIT ?
+  `;
+  return db.prepare(sql).bind(ftsPhrase(query), limit).all<SearchHit>();
+}
+
 /**
  * Fetch a single activity by its primary key.
  *
