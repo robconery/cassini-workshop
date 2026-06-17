@@ -158,6 +158,25 @@ export function buildFilters(filters: ActivityFilters): {
 // Tool query functions live below this line (added in T06–T12).
 // ---------------------------------------------------------------------------
 
+/**
+ * Fetch a single activity by its primary key.
+ *
+ * Returns the full row or null if no row with that id exists.
+ * The id is bound as a positional parameter — never interpolated into SQL.
+ */
+export async function getActivity(
+  db: Db,
+  id: number,
+): Promise<Activity | null> {
+  const sql = `
+    SELECT id, start_time_utc, start_iso, duration, date, team, spass_type,
+           target, request_name, library_definition, title, description
+    FROM master_plan
+    WHERE id = ?
+  `;
+  return db.prepare(sql).bind(id).first<Activity>();
+}
+
 /** Pagination inputs for list_activities. */
 export interface ListActivityOptions extends ActivityFilters {
   readonly limit: number;

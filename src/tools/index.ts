@@ -15,7 +15,8 @@
 
 import { z } from "zod";
 import type { Db } from "../db/queries";
-import { listActivities } from "../db/queries";
+import { listActivities, getActivity } from "../db/queries";
+import { RPC_INVALID_PARAMS } from "../mcp/jsonrpc";
 
 // ---------------------------------------------------------------------------
 // Shared field schemas
@@ -212,7 +213,18 @@ export const toolHandlers: Readonly<Record<string, ToolHandler>> = {
       offset: input.offset,
     });
   },
-  get_activity: notImplemented("get_activity"),
+  get_activity: async (args, db) => {
+    const input = getActivitySchema.parse(args);
+    const activity = await getActivity(db, input.id);
+    if (activity === null) {
+      throw {
+        isRpcError: true,
+        code: RPC_INVALID_PARAMS,
+        message: `no activity with id ${input.id}`,
+      };
+    }
+    return activity;
+  },
   search_activities: notImplemented("search_activities"),
   count_activities: notImplemented("count_activities"),
   aggregate_activities: notImplemented("aggregate_activities"),
