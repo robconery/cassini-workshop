@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import type { Db } from "../db/queries";
-import { listActivities, getActivity, searchActivities } from "../db/queries";
+import { listActivities, getActivity, searchActivities, countActivities } from "../db/queries";
 import { RPC_INVALID_PARAMS } from "../mcp/jsonrpc";
 
 // ---------------------------------------------------------------------------
@@ -229,7 +229,17 @@ export const toolHandlers: Readonly<Record<string, ToolHandler>> = {
     const input = searchActivitiesSchema.parse(args);
     return searchActivities(db, input.query, input.limit);
   },
-  count_activities: notImplemented("count_activities"),
+  count_activities: async (args, db) => {
+    const input = countActivitiesSchema.parse(args);
+    const count = await countActivities(db, {
+      from: input.from,
+      to: input.to,
+      team: input.team,
+      target: input.target,
+      spass_type: input.spass_type,
+    });
+    return { count };
+  },
   aggregate_activities: notImplemented("aggregate_activities"),
   timeline: notImplemented("timeline"),
   list_distinct: notImplemented("list_distinct"),

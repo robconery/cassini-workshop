@@ -158,6 +158,24 @@ export function buildFilters(filters: ActivityFilters): {
 // Tool query functions live below this line (added in T06–T12).
 // ---------------------------------------------------------------------------
 
+/**
+ * Count activities matching the given filters.
+ *
+ * Reuses `buildFilters` so count and list share identical filter semantics —
+ * they can never diverge. Returns 0 when no rows match (never throws).
+ */
+export async function countActivities(
+  db: Db,
+  filters: ActivityFilters,
+): Promise<number> {
+  const { clause, params } = buildFilters(filters);
+
+  const sql = `SELECT COUNT(*) AS n FROM master_plan ${clause}`;
+
+  const row = await db.prepare(sql).bind(...params).first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 /** One row returned by the FTS search — a projection of Activity plus snippet. */
 export interface SearchHit {
   readonly id: number;
