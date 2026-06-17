@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import type { Db } from "../db/queries";
-import { listActivities, getActivity, searchActivities, countActivities, aggregateActivities } from "../db/queries";
+import { listActivities, getActivity, searchActivities, countActivities, aggregateActivities, timeline } from "../db/queries";
 import { RPC_INVALID_PARAMS } from "../mcp/jsonrpc";
 
 // ---------------------------------------------------------------------------
@@ -65,13 +65,18 @@ const aggregateActivitiesSchema = z.object({
   top: z.number().int().min(1).max(100).default(20),
 });
 
-const timelineSchema = z.object({
-  from: z.string().datetime({ offset: true }),
-  to: z.string().datetime({ offset: true }),
-  bucket: z.enum(["year", "month"]).default("year"),
-  team: teamFilter,
-  target: targetFilter,
-});
+const timelineSchema = z
+  .object({
+    from: z.string().datetime({ offset: true }),
+    to: z.string().datetime({ offset: true }),
+    bucket: z.enum(["year", "month"]).default("year"),
+    team: teamFilter,
+    target: targetFilter,
+  })
+  .refine((v) => new Date(v.to) >= new Date(v.from), {
+    message: "to must be >= from",
+    path: ["to"],
+  });
 
 const listDistinctSchema = z.object({
   field: z.enum(["team", "target", "spass_type"]),
@@ -93,6 +98,12 @@ export interface ToolDescriptor {
  * rather than hand-writing JSON Schema, keeping schemas in one place.
  */
 function toJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
+  // Unwrap ZodEffects (e.g. .refine(), .transform()) to get the inner object.
+  // Without this, a refined schema falls through to the bare { type: "object" }
+  // fallback and advertises no properties or required fields to MCP clients.
+  if (schema instanceof z.ZodEffects) {
+    return toJsonSchema(schema._def.schema as z.ZodTypeAny);
+  }
   // Use zod's internal shape for object schemas to build a JSON Schema object.
   // This is intentionally minimal — only what MCP clients need to call tools.
   if (schema instanceof z.ZodObject) {
@@ -250,7 +261,16 @@ export const toolHandlers: Readonly<Record<string, ToolHandler>> = {
       spass_type: input.spass_type,
     }, input.top);
   },
-  timeline: notImplemented("timeline"),
+  timeline: async (args, db) => {
+    const input = timelineSchema.parse(args);
+    return timeline(db, {
+      from: input.from,
+      to: input.to,
+      bucket: input.bucket,
+      team: input.team,
+      target: input.target,
+    });
+  },
   list_distinct: notImplemented("list_distinct"),
 };
 

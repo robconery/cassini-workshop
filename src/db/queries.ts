@@ -324,6 +324,134 @@ export async function aggregateActivities(
   return db.prepare(sql).bind(...params, top).all<AggregationBucket>();
 }
 
+// ---------------------------------------------------------------------------
+// Timeline query
+// ---------------------------------------------------------------------------
+
+/** One bucket in a timeline result. */
+export interface TimelineBucket {
+  readonly bucket: string;
+  readonly count: number;
+}
+
+/** Bucket granularity for the timeline tool. */
+export type TimelineBucketSize = "year" | "month";
+
+/** Inputs for the timeline query function. */
+export interface TimelineOptions {
+  readonly from: string;
+  readonly to: string;
+  readonly bucket: TimelineBucketSize;
+  readonly team?: string;
+  readonly target?: string;
+}
+
+/**
+ * Generate the complete ordered series of bucket labels from `from` to `to`
+ * (exclusive) at the given granularity.
+ *
+ * Year labels: "YYYY"
+ * Month labels: "YYYY-MM"
+ *
+ * The range is [from, to): the bucket that contains `to` is NOT included.
+ */
+function generateBucketSeries(
+  from: string,
+  to: string,
+  bucketSize: TimelineBucketSize,
+): string[] {
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const labels: string[] = [];
+
+  if (bucketSize === "year") {
+    const fromYear = fromDate.getUTCFullYear();
+    const toYear = toDate.getUTCFullYear();
+    // Include year Y iff its bucket start is strictly before toDate — the same
+    // rule the month branch uses. When to=2018-01-01T00:00:00Z exactly, the
+    // 2018 bucket starts at to so 2018 is excluded; lastYear collapses to 2017.
+    const lastYear =
+      Date.UTC(toYear, 0, 1) < toDate.getTime() ? toYear : toYear - 1;
+    for (let y = fromYear; y <= lastYear; y++) {
+      labels.push(String(y));
+    }
+  } else {
+    // month
+    let year = fromDate.getUTCFullYear();
+    let month = fromDate.getUTCMonth(); // 0-based
+    while (true) {
+      const bucketStart = Date.UTC(year, month, 1);
+      if (bucketStart >= toDate.getTime()) break;
+      const mm = String(month + 1).padStart(2, "0");
+      labels.push(`${year}-${mm}`);
+      month++;
+      if (month > 11) {
+        month = 0;
+        year++;
+      }
+    }
+  }
+
+  return labels;
+}
+
+/**
+ * SQL column expression for grouping by bucket granularity.
+ *
+ * `start_iso` is stored as "YYYY-MM-DD..." so substr is safe and avoids
+ * any date-function portability concerns. The expressions are literals —
+ * never derived from user input.
+ */
+const BUCKET_EXPR = {
+  year: "substr(start_iso, 1, 4)",
+  month: "substr(start_iso, 1, 7)",
+} as const satisfies Record<TimelineBucketSize, string>;
+
+/**
+ * Return activity counts bucketed by year or month over [from, to).
+ *
+ * Security: bucket granularity is resolved from a fixed whitelist
+ * (`BUCKET_EXPR`) — never the raw user string. All filter values are bound
+ * as positional parameters. The [from, to) range is enforced in SQL via
+ * `start_iso >= ?` and `start_iso < ?` (handled by `buildFilters`).
+ *
+ * Zero-fill: buckets with no matching rows still appear with `count: 0`.
+ * The full label series is generated in TS and SQL counts are left-joined.
+ */
+export async function timeline(
+  db: Db,
+  options: TimelineOptions,
+): Promise<TimelineBucket[]> {
+  const { from, to, bucket, team, target } = options;
+  const bucketExpr = BUCKET_EXPR[bucket];
+
+  const { clause, params } = buildFilters({ from, to, team, target });
+
+  // `bucketExpr` is a literal from BUCKET_EXPR — never user input.
+  const sql = `
+    SELECT ${bucketExpr} AS bucket, COUNT(*) AS count
+    FROM master_plan
+    ${clause}
+    GROUP BY ${bucketExpr}
+    ORDER BY bucket ASC
+  `;
+
+  type SqlRow = { bucket: string; count: number };
+  const rows = await db.prepare(sql).bind(...params).all<SqlRow>();
+
+  // Build a lookup from SQL results.
+  const countByBucket = new Map<string, number>(
+    rows.map((r) => [r.bucket, r.count]),
+  );
+
+  // Zero-fill: generate the full series and substitute SQL counts.
+  const series = generateBucketSeries(from, to, bucket);
+  return series.map((label) => ({
+    bucket: label,
+    count: countByBucket.get(label) ?? 0,
+  }));
+}
+
 /** Pagination inputs for list_activities. */
 export interface ListActivityOptions extends ActivityFilters {
   readonly limit: number;

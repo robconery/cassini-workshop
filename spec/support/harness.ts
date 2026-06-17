@@ -27,12 +27,25 @@ export class McpError extends Error {
   }
 }
 
+/** Minimal representation of a tool descriptor as advertised by tools/list. */
+export interface ToolDescriptorRaw {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: {
+    type: string;
+    properties?: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
 /** A live MCP session bound to the exported Worker `fetch`, backed by `rows`. */
 export interface Session {
   /** Result of the MCP `initialize` handshake. */
   initialize(): Promise<{ serverInfo: { name: string; version: string } }>;
   /** Tool names from `tools/list`. */
   listTools(): Promise<string[]>;
+  /** Full tool descriptors (name + description + inputSchema) from `tools/list`. */
+  listToolDescriptors(): Promise<ToolDescriptorRaw[]>;
   /** Call a tool; resolves to its structured result or throws `McpError`. */
   callTool<T = unknown>(name: string, args?: Record<string, unknown>): Promise<T>;
 }
@@ -83,6 +96,13 @@ export function sessionWith(rows: Row[]): Session {
         result: { tools: Array<{ name: string }> };
       };
       return resp.result.tools.map((t) => t.name);
+    },
+
+    async listToolDescriptors() {
+      const resp = await post("tools/list") as {
+        result: { tools: ToolDescriptorRaw[] };
+      };
+      return resp.result.tools;
     },
 
     async callTool<T = unknown>(
