@@ -2,6 +2,10 @@ node_modules/
 .wrangler/
 dist/
 
+# Secrets — never commit (Worker secrets go via `wrangler secret put`)
+.dev.vars
+.env
+
 # Generated import artifact — regenerate with `node scripts/import.js`
 data/cassini.d1.sql
 # SQLite WAL sidecars — not committed

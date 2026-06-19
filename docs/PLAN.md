@@ -68,7 +68,7 @@ validation (zod) and the entry-point scenario driving the exported handler.
 
 ### Group F — Ship (depends on all tools)
 
-- [ ] **T13 — wire: deploy to Cloudflare + curl initialize** · story:STORY-010 · depends-on:T06,T07,T08,T09,T10,T11,T12 · parallel-group:-
+- [x] **T13 — wire: deploy to Cloudflare + curl initialize** · story:STORY-010 · depends-on:T06,T07,T08,T09,T10,T11,T12 · parallel-group:-
   Real `wrangler deploy`; curl a live `initialize` and `tools/list` against
   the `*.workers.dev` URL. Acceptance: spec `deploy-and-initialize` — a real
   request through the deployed Worker returns versioned `serverInfo` and the
